@@ -10,6 +10,7 @@ import (
 
 	"github.com/prozacchiwawa/dblayer"
 	"github.com/prozacchiwawa/dblayer/sqlite"
+	"github.com/prozacchiwawa/dblayer/firestore"
 
 	_ "rsc.io/sqlite"
 )
@@ -63,6 +64,9 @@ func TestDBLayer(t *testing.T) {
 		panic(fmt.Sprintf("error getting db layer %v", err))
 	}
 	defer db.Close()
+
+	// Reference so we can test compile.
+	_, _ = firestore.NewFireDBLayer(nil, dbdesc)
 
 	companies := []Company {
 		Company {
