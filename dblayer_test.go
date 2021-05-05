@@ -59,7 +59,7 @@ func TestDBLayer(t *testing.T) {
 		},
 	}
 
-	db, err := sqlite.NewSqliteDBLayer(sdb, dbdesc)
+	db, err := sqlite.NewSqliteDBLayer(sdb, "id", "payload", dbdesc)
 	if err != nil {
 		panic(fmt.Sprintf("error getting db layer %v", err))
 	}
