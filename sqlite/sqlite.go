@@ -35,6 +35,7 @@ type SqliteDBQuery struct {
 	filters []SqliteDBQueryFilter
 	limitOffset int
 	limitMax int
+	orderBy string
 }
 
 func NewSqliteDBLayer(db *sql.DB, idField string, payloadField string, desc map[string] dblayer.DBTable) (dblayer.DBLayer, error) {
@@ -126,6 +127,14 @@ func (db *SqliteDBLayer) InsertDocument(table string, key string, value interfac
 	return err
 }
 
+func (db *SqliteDBLayer) UpdateDocument(table string, key string, value interface {}) error {
+	err := db.DeleteDocument(table, key)
+	if err != nil {
+		return err
+	}
+	return db.InsertDocument(table, key, value)
+}
+
 func (db *SqliteDBLayer) InsertDocuments(table string, pairs []dblayer.DBPair) error {
 	for _, p := range pairs {
 		err := db.InsertDocument(table, p.Id, p.Value)
@@ -160,6 +169,7 @@ func (db *SqliteDBLayer) CreateQuery(table string) dblayer.DBQuery {
 		filters: []SqliteDBQueryFilter {},
 		limitOffset: -1,
 		limitMax: -1,
+		orderBy: db.idField,
 	}
 }
 
@@ -185,6 +195,10 @@ func (db *SqliteDBQuery) FilterLess(column string, value interface {}) {
 		column: column,
 		value: value,
 	})
+}
+
+func (db *SqliteDBQuery) Order(field string) {
+	db.orderBy = field
 }
 
 func (db *SqliteDBQuery) Limit(lim int) {
@@ -217,7 +231,12 @@ func (db *SqliteDBQuery) Execute() ([]dblayer.DBPair, error) {
 		queryLimit = fmt.Sprintf("limit %d offset %d", db.limitMax, db.limitOffset)
 	}
 
-	doQuery := fmt.Sprintf("select %s, %s from %s where %s %s", db.parent.idField, db.parent.payloadField, db.table, queryWhere, queryLimit)
+	var whereConnector string
+	if len(queryWhereClauses) > 0 {
+		whereConnector = " where "
+	}
+
+	doQuery := fmt.Sprintf("select %s, %s from %s %s %s order by %s %s", db.parent.idField, db.parent.payloadField, db.table, whereConnector, queryWhere, db.orderBy, queryLimit)
 
 	rows, err := db.parent.db.QueryContext(context.Background(), doQuery, queryArguments...)
 	if err != nil {

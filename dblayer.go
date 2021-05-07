@@ -13,6 +13,7 @@ type DBQuery interface {
 	FilterGreater(string, interface {})
 	FilterLess(string, interface {})
 
+	Order(string)
 	Limit(int)
 	Offset(int)
 
@@ -25,6 +26,7 @@ type DBLayer interface {
 	GetDocument(table string, key string) (interface {}, bool, error)
 	InsertDocument(table string, key string, value interface {}) error
 	InsertDocuments(table string, keyValues []DBPair) error
+	UpdateDocument(table string, key string, value interface {}) error
 	DeleteDocument(table string, key string) error
 	DeleteDocuments(table string, keys []string) error
 

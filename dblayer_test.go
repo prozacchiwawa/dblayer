@@ -121,7 +121,7 @@ func TestDBLayer(t *testing.T) {
 
 	resultEmps := make([]Employee, len(results))
 	for i, r := range results {
-		resultEmps[i] = r.Value.(Employee)
+		resultEmps[i] = r.(Employee)
 	}
 
 	if len(results) != 2 {
@@ -138,3 +138,4 @@ func TestDBLayer(t *testing.T) {
 		panic(fmt.Sprintf("not the right employees: %v", results))
 	}
 }
+

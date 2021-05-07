@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"cloud.google.com/go/firestore"
 	"github.com/prozacchiwawa/dblayer"
@@ -15,7 +16,6 @@ type FireDBLayer struct {
 	client *firestore.Client
 
 	desc map[string] dblayer.DBTable
-
 	payloadField string
 }
 
@@ -36,6 +36,7 @@ type FireDBQuery struct {
 	filters []FireDBQueryFilter
 	limitOffset int
 	limitMax int
+	orderBy string
 }
 
 func NewFireDBLayer(client *firestore.Client, payloadField string, desc map[string] dblayer.DBTable) (dblayer.DBLayer, error) {
@@ -137,6 +138,7 @@ func (db *FireDBLayer) CreateQuery(table string) dblayer.DBQuery {
 		filters: []FireDBQueryFilter {},
 		limitOffset: -1,
 		limitMax: -1,
+		orderBy: db.payloadField,
 	}
 }
 
@@ -164,6 +166,10 @@ func (db *FireDBQuery) FilterLess(column string, value interface {}) {
 	})
 }
 
+func (db *FireDBQuery) Order(orderBy string) {
+	db.orderBy = orderBy
+}
+
 func (db *FireDBQuery) Limit(lim int) {
 	db.limitMax = lim
 }
@@ -175,27 +181,22 @@ func (db *FireDBQuery) Offset(off int) {
 func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 	collection := db.parent.client.Collection(db.table)
 
-	query := []firestore.Query {}
-	for _, f := range db.filters {
-		if len(query) == 0 {
-			query = append(query, collection.Where(f.column, f.operator, f.value))
-		} else {
-			query[0] = query[0].Where(f.column, f.operator, f.value)
-		}
-	}
-
-	if len(query) == 0 {
-		query = append(query, collection.Where("impossible", "!=", "impossible-value"))
-	}
+	var query firestore.Query
+	query = collection.OrderBy(db.orderBy, firestore.Asc)
 
 	if db.limitOffset != -1 {
-		query[0] = query[0].Offset(db.limitOffset)
-	}
-	if db.limitMax != -1 {
-		query[0] = query[0].Limit(db.limitMax)
+		query = query.StartAt(db.limitOffset)
 	}
 
-	iter := query[0].Documents(context.Background())
+	if db.limitMax != -1 {
+		query = query.Limit(db.limitMax)
+	}
+
+	for _, f := range db.filters {
+		query = query.Where(f.column, f.operator, f.value)
+	}
+
+	iter := query.Documents(context.Background())
 
 	results := []dblayer.DBPair {}
 	for {
@@ -213,12 +214,13 @@ func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 
 		payload, ok := recovered[db.parent.payloadField]
 		if !ok {
+			log.Printf("no payload field in table %s\n", db.table)
 			continue
 		}
 
 		resultObject, err := db.parent.desc[db.table].Decoder([]byte(fmt.Sprintf("%v", payload)))
 		if err != nil {
-			continue
+			return []dblayer.DBPair {}, err
 		}
 
 		results = append(results, dblayer.DBPair { Id: snap.Ref.ID, Value: resultObject })
