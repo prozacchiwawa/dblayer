@@ -16,7 +16,7 @@ type DBQuery interface {
 	Limit(int)
 	Offset(int)
 
-	Execute() ([]interface {}, error)
+	Execute() ([]DBPair, error)
 }
 
 type DBLayer interface {

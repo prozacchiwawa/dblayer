@@ -15,6 +15,8 @@ type FireDBLayer struct {
 	client *firestore.Client
 
 	desc map[string] dblayer.DBTable
+
+	payloadField string
 }
 
 const queryOpEq = "=="
@@ -36,10 +38,11 @@ type FireDBQuery struct {
 	limitMax int
 }
 
-func NewFireDBLayer(client *firestore.Client, desc map[string] dblayer.DBTable) (dblayer.DBLayer, error) {
+func NewFireDBLayer(client *firestore.Client, payloadField string, desc map[string] dblayer.DBTable) (dblayer.DBLayer, error) {
 	return &FireDBLayer {
 		client: client,
 		desc: desc,
+		payloadField: payloadField,
 	}, nil
 }
 
@@ -57,7 +60,7 @@ func (db *FireDBLayer) GetDocument(table string, key string) (interface {}, bool
 	decodedMap := make(map[string]interface {})
 	doc.DataTo(&decodedMap)
 
-	if payloadData, ok := decodedMap["payload"]; !ok {
+	if payloadData, ok := decodedMap[db.payloadField]; !ok {
 		return nil, false, nil
 	} else {
 		resultObject, err := db.desc[table].Decoder([]byte(fmt.Sprintf("%v", payloadData)))
@@ -85,11 +88,19 @@ func (db *FireDBLayer) InsertDocument(table string, key string, value interface 
 	for _, c := range db.desc[table].Breakouts {
 		finalMap[c] = decmap[c]
 	}
-	finalMap["payload"] = string(encoded)
+	finalMap[db.payloadField] = string(encoded)
 
 	collection := db.client.Collection(table)
 	_, err = collection.Doc(key).Create(context.Background(), &finalMap)
 	return err
+}
+
+func (db *FireDBLayer) UpdateDocument(table string, key string, value interface {}) error {
+	err := db.DeleteDocument(table, key)
+	if err != nil {
+		return err
+	}
+	return db.InsertDocument(table, key, value)
 }
 
 func (db *FireDBLayer) InsertDocuments(table string, pairs []dblayer.DBPair) error {
@@ -161,7 +172,7 @@ func (db *FireDBQuery) Offset(off int) {
 	db.limitOffset = off
 }
 
-func (db *FireDBQuery) Execute() ([]interface {}, error) {
+func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 	collection := db.parent.client.Collection(db.table)
 
 	query := []firestore.Query {}
@@ -186,7 +197,7 @@ func (db *FireDBQuery) Execute() ([]interface {}, error) {
 
 	iter := query[0].Documents(context.Background())
 
-	results := []interface {} {}
+	results := []dblayer.DBPair {}
 	for {
 		snap, err := iter.Next()
 		if err == iterator.Done {
@@ -194,13 +205,13 @@ func (db *FireDBQuery) Execute() ([]interface {}, error) {
 		}
 
 		if err != nil {
-			return []interface {} {}, err
+			return []dblayer.DBPair {}, err
 		}
 
 		recovered := make(map[string]interface {})
 		snap.DataTo(&recovered)
 
-		payload, ok := recovered["payload"]
+		payload, ok := recovered[db.parent.payloadField]
 		if !ok {
 			continue
 		}
@@ -210,7 +221,7 @@ func (db *FireDBQuery) Execute() ([]interface {}, error) {
 			continue
 		}
 
-		results = append(results, resultObject)
+		results = append(results, dblayer.DBPair { Id: snap.Ref.ID, Value: resultObject })
 	}
 
 	return results, nil

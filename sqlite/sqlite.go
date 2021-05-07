@@ -195,7 +195,7 @@ func (db *SqliteDBQuery) Offset(off int) {
 	db.limitOffset = off
 }
 
-func (db *SqliteDBQuery) Execute() ([]interface {}, error) {
+func (db *SqliteDBQuery) Execute() ([]dblayer.DBPair, error) {
 	queryWhereClauses := []string {}
 	queryArguments := []interface {} {}
 
@@ -217,29 +217,30 @@ func (db *SqliteDBQuery) Execute() ([]interface {}, error) {
 		queryLimit = fmt.Sprintf("limit %d offset %d", db.limitMax, db.limitOffset)
 	}
 
-	doQuery := fmt.Sprintf("select %s from %s where %s %s", db.parent.payloadField, db.table, queryWhere, queryLimit)
+	doQuery := fmt.Sprintf("select %s, %s from %s where %s %s", db.parent.idField, db.parent.payloadField, db.table, queryWhere, queryLimit)
 
 	rows, err := db.parent.db.QueryContext(context.Background(), doQuery, queryArguments...)
 	if err != nil {
-		return []interface {} {}, err
+		return []dblayer.DBPair {}, err
 	}
 	defer rows.Close()
 
-	results := []interface {} {}
+	results := []dblayer.DBPair {}
+	var id string
 	var payload string
 	for rows.Next() {
-		err = rows.Scan(&payload)
+		err = rows.Scan(&id, &payload)
 		if err != nil {
-			return []interface {} {}, err
+			return []dblayer.DBPair {}, err
 		}
 
 		resultObject, err := db.parent.desc[db.table].Decoder([]byte(payload))
 		if err != nil {
-			return []interface {} {}, err
+			return []dblayer.DBPair {}, err
 		}
 
 
-		results = append(results, resultObject)
+		results = append(results, dblayer.DBPair { Id: id, Value: resultObject })
 	}
 
 	return results, nil

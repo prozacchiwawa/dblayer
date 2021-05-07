@@ -66,7 +66,7 @@ func TestDBLayer(t *testing.T) {
 	defer db.Close()
 
 	// Reference so we can test compile.
-	_, _ = firestore.NewFireDBLayer(nil, dbdesc)
+	_, _ = firestore.NewFireDBLayer(nil, "payload", dbdesc)
 
 	companies := []Company {
 		Company {
@@ -121,7 +121,7 @@ func TestDBLayer(t *testing.T) {
 
 	resultEmps := make([]Employee, len(results))
 	for i, r := range results {
-		resultEmps[i] = r.(Employee)
+		resultEmps[i] = r.Value.(Employee)
 	}
 
 	if len(results) != 2 {
@@ -138,4 +138,3 @@ func TestDBLayer(t *testing.T) {
 		panic(fmt.Sprintf("not the right employees: %v", results))
 	}
 }
-
