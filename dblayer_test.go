@@ -121,7 +121,7 @@ func TestDBLayer(t *testing.T) {
 
 	resultEmps := make([]Employee, len(results))
 	for i, r := range results {
-		resultEmps[i] = r.(Employee)
+		resultEmps[i] = r.Value.(Employee)
 	}
 
 	if len(results) != 2 {
