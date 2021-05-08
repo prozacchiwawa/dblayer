@@ -16,6 +16,7 @@ type FireDBLayer struct {
 	client *firestore.Client
 
 	desc map[string] dblayer.DBTable
+	idField string
 	payloadField string
 }
 
@@ -39,10 +40,11 @@ type FireDBQuery struct {
 	orderBy string
 }
 
-func NewFireDBLayer(client *firestore.Client, payloadField string, desc map[string] dblayer.DBTable) (dblayer.DBLayer, error) {
+func NewFireDBLayer(client *firestore.Client, idField string, payloadField string, desc map[string] dblayer.DBTable) (dblayer.DBLayer, error) {
 	return &FireDBLayer {
 		client: client,
 		desc: desc,
+		idField: idField,
 		payloadField: payloadField,
 	}, nil
 }
@@ -89,6 +91,8 @@ func (db *FireDBLayer) InsertDocument(table string, key string, value interface 
 	for _, c := range db.desc[table].Breakouts {
 		finalMap[c] = decmap[c]
 	}
+
+	finalMap[db.idField] = key
 	finalMap[db.payloadField] = string(encoded)
 
 	collection := db.client.Collection(table)
@@ -138,7 +142,7 @@ func (db *FireDBLayer) CreateQuery(table string) dblayer.DBQuery {
 		filters: []FireDBQueryFilter {},
 		limitOffset: -1,
 		limitMax: -1,
-		orderBy: db.payloadField,
+		orderBy: "",
 	}
 }
 
@@ -182,21 +186,63 @@ func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 	collection := db.parent.client.Collection(db.table)
 
 	var query firestore.Query
-	query = collection.OrderBy(db.orderBy, firestore.Asc)
+	var iter *firestore.DocumentIterator
 
-	if db.limitOffset != -1 {
-		query = query.StartAt(db.limitOffset)
+	// I didn't realize how many ordering rules firebase has on queries
+	// that are not expressed in the Query type.
+	//
+	// We're not allowed to use OrderBy when there's an equals comparison
+	// but we must use it when there's a relational comparison.
+	hasEquals := false
+
+	if len(db.filters) > 0 {
+		for i, f := range db.filters {
+			if f.operator == queryOpEq {
+				hasEquals = true
+			}
+
+			if i == 0 {
+				query = collection.Where(f.column, f.operator, f.value)
+			} else {
+				query = query.Where(f.column, f.operator, f.value)
+			}
+		}
+
+		if hasEquals {
+			db.orderBy = ""
+		}
+
+		if db.limitOffset != -1 {
+			query = query.StartAt(db.limitOffset)
+		}
+
+		if db.limitMax != -1 {
+			query = query.Limit(db.limitMax)
+		}
+
+		iter = query.Documents(context.Background())
+	} else {
+		if db.orderBy == "" && (db.limitOffset != -1 || db.limitMax != -1) {
+			db.orderBy = db.parent.idField
+		}
+
+		if db.limitOffset != -1 || db.limitMax != -1 {
+			query = collection.OrderBy(db.orderBy, firestore.Asc)
+
+			if db.limitOffset != -1 {
+				query = query.StartAt(db.limitOffset)
+			}
+
+			if db.limitMax != -1 {
+				query = query.Limit(db.limitMax)
+			}
+
+			iter = query.Documents(context.Background())
+		} else {
+			// No filters, apply limits to the collection itself.
+			iter = collection.Documents(context.Background())
+		}
 	}
-
-	if db.limitMax != -1 {
-		query = query.Limit(db.limitMax)
-	}
-
-	for _, f := range db.filters {
-		query = query.Where(f.column, f.operator, f.value)
-	}
-
-	iter := query.Documents(context.Background())
 
 	results := []dblayer.DBPair {}
 	for {
