@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 
 	"cloud.google.com/go/firestore"
 	"github.com/prozacchiwawa/dblayer"
@@ -18,6 +19,7 @@ type FireDBLayer struct {
 	desc map[string] dblayer.DBTable
 	idField string
 	payloadField string
+	less func (string, string, interface {}, interface {}) bool
 }
 
 const queryOpEq = "=="
@@ -40,12 +42,13 @@ type FireDBQuery struct {
 	orderBy string
 }
 
-func NewFireDBLayer(client *firestore.Client, idField string, payloadField string, desc map[string] dblayer.DBTable) (dblayer.DBLayer, error) {
+func NewFireDBLayer(client *firestore.Client, idField string, payloadField string, less func (string, string, interface {}, interface {}) bool, desc map[string] dblayer.DBTable) (dblayer.DBLayer, error) {
 	return &FireDBLayer {
 		client: client,
 		desc: desc,
 		idField: idField,
 		payloadField: payloadField,
+		less: less,
 	}, nil
 }
 
@@ -208,10 +211,6 @@ func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 			}
 		}
 
-		if hasEquals {
-			db.orderBy = ""
-		}
-
 		if db.limitOffset != -1 {
 			query = query.StartAt(db.limitOffset)
 		}
@@ -270,6 +269,13 @@ func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 		}
 
 		results = append(results, dblayer.DBPair { Id: snap.Ref.ID, Value: resultObject })
+	}
+
+	// Sort results if we couldn't before
+	if hasEquals && db.orderBy != "" {
+		sort.Slice(results, func(i, j int) bool {
+			return db.parent.less(db.table, db.orderBy, results[i], results[j])
+		})
 	}
 
 	return results, nil

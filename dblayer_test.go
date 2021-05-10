@@ -59,6 +59,15 @@ func TestDBLayer(t *testing.T) {
 		},
 	}
 
+	sorter := func(table string, column string, a interface {}, b interface {}) bool {
+		switch table + "." + column {
+		case "employee.salary": return a.(Employee).Salary < b.(Employee).Salary
+		default: return fmt.Sprintf("%v", a) < fmt.Sprintf("%v", b)
+		}
+
+		return false
+	}
+
 	db, err := sqlite.NewSqliteDBLayer(sdb, "id", "payload", dbdesc)
 	if err != nil {
 		panic(fmt.Sprintf("error getting db layer %v", err))
@@ -66,7 +75,7 @@ func TestDBLayer(t *testing.T) {
 	defer db.Close()
 
 	// Reference so we can test compile.
-	_, _ = firestore.NewFireDBLayer(nil, "payload", dbdesc)
+	_, _ = firestore.NewFireDBLayer(nil, "id", "payload", sorter, dbdesc)
 
 	companies := []Company {
 		Company {
