@@ -274,7 +274,7 @@ func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 	// Sort results if we couldn't before
 	if hasEquals && db.orderBy != "" {
 		sort.Slice(results, func(i, j int) bool {
-			return db.parent.less(db.table, db.orderBy, results[i], results[j])
+			return db.parent.less(db.table, db.orderBy, results[i].Value, results[j].Value)
 		})
 	}
 
