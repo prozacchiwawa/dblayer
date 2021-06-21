@@ -18,6 +18,7 @@ type DBQuery interface {
 	Offset(int)
 
 	Execute() ([]DBPair, error)
+	Delete() error
 }
 
 type DBLayer interface {

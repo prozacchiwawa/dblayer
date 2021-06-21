@@ -25,6 +25,7 @@ type FireDBLayer struct {
 const queryOpEq = "=="
 const queryOpLt = "<"
 const queryOpGt = ">"
+const batchSize = 200
 
 type FireDBQueryFilter struct {
 	operator string
@@ -104,11 +105,9 @@ func (db *FireDBLayer) InsertDocument(table string, key string, value interface 
 }
 
 func (db *FireDBLayer) UpdateDocument(table string, key string, value interface {}) error {
-	err := db.DeleteDocument(table, key)
-	if err != nil {
-		return err
-	}
-	return db.InsertDocument(table, key, value)
+	docRef := db.client.Collection(table).Doc(key)
+	_, err := docRef.Set(context.Background(), value)
+	return err
 }
 
 func (db *FireDBLayer) InsertDocuments(table string, pairs []dblayer.DBPair) error {
@@ -185,7 +184,7 @@ func (db *FireDBQuery) Offset(off int) {
 	db.limitOffset = off
 }
 
-func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
+func (db *FireDBQuery) prepareQueryIterator() (*firestore.DocumentIterator, bool) {
 	collection := db.parent.client.Collection(db.table)
 
 	var query firestore.Query
@@ -243,6 +242,12 @@ func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 		}
 	}
 
+	return iter, hasEquals
+}
+
+func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
+	iter, hasEquals := db.prepareQueryIterator()
+
 	results := []dblayer.DBPair {}
 	for {
 		snap, err := iter.Next()
@@ -279,4 +284,43 @@ func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 	}
 
 	return results, nil
+}
+
+func (db *FireDBQuery) Delete() error {
+	iter, _ := db.prepareQueryIterator()
+	batch := db.parent.client.Batch()
+	batchCount := 0
+
+	for {
+		snap, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+
+		if err != nil {
+			return err
+		}
+
+		batch.Delete(snap.Ref)
+		batchCount += 1
+
+		if batchCount >= batchSize {
+			_, err := batch.Commit(context.Background())
+			if err != nil {
+				return err
+			}
+
+			batch = db.parent.client.Batch()
+			batchCount = 0
+		}
+	}
+
+	if batchCount >= 0 {
+		_, err := batch.Commit(context.Background())
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

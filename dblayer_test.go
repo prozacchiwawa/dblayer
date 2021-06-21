@@ -146,5 +146,26 @@ func TestDBLayer(t *testing.T) {
 	if enames[0] != "e1" || enames[1] != "e3" {
 		panic(fmt.Sprintf("not the right employees: %v", results))
 	}
+
+	// Delete c1
+	q = db.CreateQuery("employee")
+	q.FilterEqual("company", "c1")
+	err = q.Delete()
+
+	// check zero results for c1
+	q = db.CreateQuery("employee")
+	q.FilterEqual("company", "c1")
+	results, err = q.Execute()
+	if len(results) > 0 {
+		panic(fmt.Sprintf("didn't delete c1 entries"))
+	}
+
+	// Check that we didn't delete c2 employees
+	q = db.CreateQuery("employee")
+	q.FilterEqual("company", "c2")
+	results, err = q.Execute()
+	if len(results) != 1 {
+		panic(fmt.Sprintf("we deleted c1 employees but c2 employee was also gone"))
+	}
 }
 

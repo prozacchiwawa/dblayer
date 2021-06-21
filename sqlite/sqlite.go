@@ -264,3 +264,25 @@ func (db *SqliteDBQuery) Execute() ([]dblayer.DBPair, error) {
 
 	return results, nil
 }
+
+func (db *SqliteDBQuery) Delete() error {
+	queryWhereClauses := []string {}
+	queryArguments := []interface {} {}
+
+	for _, f := range db.filters {
+		queryArguments = append(queryArguments, f.value)
+		queryWhereClauses = append(queryWhereClauses, fmt.Sprintf("(%s %s ?)", f.column, f.operator))
+	}
+
+	queryWhere := strings.Join(queryWhereClauses, " and ")
+
+	var whereConnector string
+	if len(queryWhereClauses) > 0 {
+		whereConnector = " where "
+	}
+
+	doQuery := fmt.Sprintf("delete from %s %s %s", db.table, whereConnector, queryWhere)
+
+	_, err := db.parent.db.Exec(doQuery, queryArguments...)
+	return err
+}
