@@ -14,6 +14,7 @@ type DBQuery interface {
 	FilterLess(string, interface {})
 
 	Order(string)
+	ReverseOrder(string)
 	Limit(int)
 	Offset(int)
 

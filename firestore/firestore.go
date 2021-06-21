@@ -41,6 +41,7 @@ type FireDBQuery struct {
 	limitOffset int
 	limitMax int
 	orderBy string
+	reversed bool
 }
 
 func NewFireDBLayer(client *firestore.Client, idField string, payloadField string, less func (string, string, interface {}, interface {}) bool, desc map[string] dblayer.DBTable) (dblayer.DBLayer, error) {
@@ -176,6 +177,11 @@ func (db *FireDBQuery) Order(orderBy string) {
 	db.orderBy = orderBy
 }
 
+func (db *FireDBQuery) ReverseOrder(orderBy string) {
+	db.orderBy = orderBy
+	db.reversed = true
+}
+
 func (db *FireDBQuery) Limit(lim int) {
 	db.limitMax = lim
 }
@@ -225,7 +231,11 @@ func (db *FireDBQuery) prepareQueryIterator() (*firestore.DocumentIterator, bool
 		}
 
 		if db.limitOffset != -1 || db.limitMax != -1 {
-			query = collection.OrderBy(db.orderBy, firestore.Asc)
+			fsorder := firestore.Asc
+			if db.reversed {
+				fsorder = firestore.Desc
+			}
+			query = collection.OrderBy(db.orderBy, fsorder)
 
 			if db.limitOffset != -1 {
 				query = query.StartAt(db.limitOffset)

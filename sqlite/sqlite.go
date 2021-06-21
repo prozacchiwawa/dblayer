@@ -36,6 +36,7 @@ type SqliteDBQuery struct {
 	limitOffset int
 	limitMax int
 	orderBy string
+	reversed bool
 }
 
 func NewSqliteDBLayer(db *sql.DB, idField string, payloadField string, desc map[string] dblayer.DBTable) (dblayer.DBLayer, error) {
@@ -201,6 +202,11 @@ func (db *SqliteDBQuery) Order(field string) {
 	db.orderBy = field
 }
 
+func (db *SqliteDBQuery) ReverseOrder(field string) {
+	db.orderBy = field
+	db.reversed = true
+}
+
 func (db *SqliteDBQuery) Limit(lim int) {
 	db.limitMax = lim
 }
@@ -236,7 +242,12 @@ func (db *SqliteDBQuery) Execute() ([]dblayer.DBPair, error) {
 		whereConnector = " where "
 	}
 
-	doQuery := fmt.Sprintf("select %s, %s from %s %s %s order by %s %s", db.parent.idField, db.parent.payloadField, db.table, whereConnector, queryWhere, db.orderBy, queryLimit)
+	ordering := "asc"
+	if db.reversed {
+		ordering = " desc "
+	}
+
+	doQuery := fmt.Sprintf("select %s, %s from %s %s %s order by %s %s %s", db.parent.idField, db.parent.payloadField, db.table, whereConnector, queryWhere, db.orderBy, ordering, queryLimit)
 
 	rows, err := db.parent.db.QueryContext(context.Background(), doQuery, queryArguments...)
 	if err != nil {
