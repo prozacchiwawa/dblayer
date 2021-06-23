@@ -106,8 +106,27 @@ func (db *FireDBLayer) InsertDocument(table string, key string, value interface 
 }
 
 func (db *FireDBLayer) UpdateDocument(table string, key string, value interface {}) error {
+	encoded, err := json.Marshal(&value)
+	if err != nil {
+		return err
+	}
+
+	decmap := map[string]interface {} {}
+	err = json.Unmarshal(encoded, &decmap)
+	if err != nil {
+		return err
+	}
+
+	finalMap := map[string]interface {} {}
+	for _, c := range db.desc[table].Breakouts {
+		finalMap[c] = decmap[c]
+	}
+
+	finalMap[db.idField] = key
+	finalMap[db.payloadField] = string(encoded)
+
 	docRef := db.client.Collection(table).Doc(key)
-	_, err := docRef.Set(context.Background(), value)
+	_, err = docRef.Set(context.Background(), &finalMap)
 	return err
 }
 
