@@ -293,7 +293,7 @@ func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 
 		payload, ok := recovered[db.parent.payloadField]
 		if !ok {
-			log.Printf("no payload field in table %s\n", db.table)
+			log.Printf("no payload field (%s) in table %s, record data: %v\n", db.table, db.parent.payloadField, recovered)
 			continue
 		}
 
