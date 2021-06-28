@@ -317,8 +317,7 @@ func (db *FireDBQuery) Execute() ([]dblayer.DBPair, error) {
 
 func (db *FireDBQuery) Delete() error {
 	iter, _ := db.prepareQueryIterator()
-	batch := db.parent.client.Batch()
-	batchCount := 0
+	todelete := []string {}
 
 	for {
 		snap, err := iter.Next()
@@ -330,22 +329,11 @@ func (db *FireDBQuery) Delete() error {
 			return err
 		}
 
-		batch.Delete(snap.Ref)
-		batchCount += 1
-
-		if batchCount >= batchSize {
-			_, err := batch.Commit(context.Background())
-			if err != nil {
-				return err
-			}
-
-			batch = db.parent.client.Batch()
-			batchCount = 0
-		}
+		todelete = append(todelete, snap.Ref.ID)
 	}
 
-	if batchCount >= 0 {
-		_, err := batch.Commit(context.Background())
+	for _, d := range todelete {
+		err := db.parent.DeleteDocument(db.table, d)
 		if err != nil {
 			return err
 		}
